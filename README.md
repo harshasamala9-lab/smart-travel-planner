@@ -29,7 +29,7 @@ ports in `docker-compose.yml`).
 | Reports / export | Currency-safe analytics, CSV, ReportLab PDF with Unicode font |
 | Tests | 108 passing, offline (no API quota or credentials required) |
 | API docs | Swagger `/docs`, ReDoc `/redoc`, OpenAPI `/openapi.json` |
-| Production | <https://smart-travel-planner-nk60.onrender.com> — single Docker service (API + SPA) |
+| Production | Vercel: <https://smart-travel-planner-nine-teal.vercel.app> · Render API + SPA: <https://smart-travel-planner-nk60.onrender.com> |
 | Android | Capacitor 8 debug APK (see `docs/DEPLOY_AND_MOBILE.md`) |
 
 ---

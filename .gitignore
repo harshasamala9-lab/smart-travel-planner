@@ -44,3 +44,6 @@ tools/
 # Built binaries
 *.apk
 *.aab
+
+# Local verification screenshots
+vercel-*.png

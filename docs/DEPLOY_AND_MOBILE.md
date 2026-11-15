@@ -1,15 +1,45 @@
 # Deployment & Mobile — Smart Travel Planner
 
-The app ships as **one Docker image that serves both the FastAPI API and the
-built React SPA on the same origin**. That keeps cookies, CORS and OAuth
-redirects simple and means there is only one thing to deploy.
+The API and a ready-to-use web app run as **one Docker image on Render**. The
+same React SPA is also deployed to **Vercel** as a static frontend that calls the
+Render API. Vercel serves the UI; Render keeps the long-running FastAPI process,
+database access and integrations.
 
 | Target | URL / artifact | Status |
 | --- | --- | --- |
-| Production web app | <https://smart-travel-planner-nk60.onrender.com> | Live |
+| Vercel web app | <https://smart-travel-planner-nine-teal.vercel.app> | Live |
+| Render all-in-one | <https://smart-travel-planner-nk60.onrender.com> | Live (API + SPA) |
 | Local full stack | `http://127.0.0.1:8000` | `docker compose up -d --build` |
 | Android APK | `frontend/android/app/build/outputs/apk/debug/app-debug.apk` | Debug-signed, installable |
-| Installable PWA | Same production URL | Install from Chrome / Safari |
+| Installable PWA | Both production URLs | Install from Chrome / Safari |
+
+---
+
+## 0. Vercel (frontend)
+
+Vercel hosts the static React build. The API stays on Render because FastAPI is
+a long-running server, not a static site.
+
+- **Project:** `smart-travel-planner` (Hobby plan)
+- **Production URL:** <https://smart-travel-planner-nine-teal.vercel.app>
+- **Root directory:** `frontend`
+- **Framework:** Vite (`frontend/vercel.json` sets build, output and SPA rewrites)
+- **Build command:** `npm run build` → `dist`
+- **Environment variable:** `VITE_API_BASE_URL=https://smart-travel-planner-nk60.onrender.com`
+  (set for Production and Preview in the Vercel project; also passed via
+  `--build-env` so the value is baked into the bundle)
+
+Redeploy after a frontend change:
+
+```bash
+cd frontend
+vercel deploy --prod --yes --project smart-travel-planner \
+  --build-env VITE_API_BASE_URL=https://smart-travel-planner-nk60.onrender.com
+```
+
+When the Vercel origin changes, add it to the Render `CORS_ORIGINS` variable and
+to the Neon Auth trusted domains (`neon neon-auth domain add <origin>`), then
+redeploy the Render service so the new CORS list takes effect.
 
 ---
 
