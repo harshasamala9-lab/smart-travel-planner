@@ -1,0 +1,194 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ==========================================================================
+   Smart Travel Planner — design system
+   ========================================================================== */
+
+@layer base {
+  :root {
+    --nav-shadow: 0 1px 0 rgba(10, 28, 57, 0.06);
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-slate-50 font-body text-slate-700 antialiased;
+    overflow-x: hidden;
+  }
+
+  ::selection {
+    @apply bg-ocean-500/20 text-navy-950;
+  }
+
+  h1, h2, h3, h4 {
+    @apply font-display text-navy-950;
+    text-wrap: balance;
+  }
+
+  /* Visible, consistent keyboard focus */
+  a:focus-visible,
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  [tabindex]:focus-visible {
+    @apply outline-none ring-2 ring-ocean-500/70 ring-offset-2 ring-offset-white;
+  }
+
+  /* Subtle scrollbar (desktop only) */
+  @media (pointer: fine) {
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(15, 44, 86, 0.18);
+      border-radius: 8px;
+      border: 2px solid transparent;
+      background-clip: content-box;
+    }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(15, 44, 86, 0.3); background-clip: content-box; }
+  }
+}
+
+@layer components {
+  /* Buttons ---------------------------------------------------------------- */
+  .btn {
+    @apply inline-flex select-none items-center justify-center gap-2 rounded-xl px-4 py-2.5
+      text-sm font-semibold transition-all duration-200 disabled:pointer-events-none
+      disabled:opacity-55;
+  }
+  .btn-primary {
+    @apply bg-ocean-600 text-white shadow-soft hover:bg-ocean-700 hover:shadow-glow active:scale-[0.98];
+  }
+  .btn-secondary {
+    @apply bg-navy-950 text-white hover:bg-navy-800 active:scale-[0.98];
+  }
+  .btn-outline {
+    @apply border border-slate-300 bg-white text-navy-950 hover:border-ocean-500 hover:text-ocean-700 active:scale-[0.98];
+  }
+  .btn-ghost {
+    @apply text-navy-900 hover:bg-navy-950/5 active:scale-[0.98];
+  }
+  .btn-danger {
+    @apply bg-rose-600 text-white hover:bg-rose-700 active:scale-[0.98];
+  }
+  .btn-sand {
+    @apply bg-sand-400 text-navy-950 hover:bg-sand-300 active:scale-[0.98];
+  }
+
+  /* Forms ------------------------------------------------------------------ */
+  .label {
+    @apply mb-1.5 block text-sm font-semibold text-navy-950;
+  }
+  .input {
+    @apply w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-navy-950
+      placeholder:text-slate-400 transition-colors duration-150
+      hover:border-slate-400 focus:border-ocean-500 focus:outline-none focus:ring-4 focus:ring-ocean-500/10
+      disabled:cursor-not-allowed disabled:bg-slate-100;
+  }
+  .input-error {
+    @apply border-rose-400 focus:border-rose-500 focus:ring-rose-500/10;
+  }
+  .field-error {
+    @apply mt-1.5 text-xs font-medium text-rose-600;
+  }
+  .hint {
+    @apply mt-1.5 text-xs text-slate-500;
+  }
+
+  /* Surfaces --------------------------------------------------------------- */
+  .card {
+    @apply rounded-2xl border border-slate-200/80 bg-white shadow-soft;
+  }
+  .card-hover {
+    @apply transition-all duration-300 hover:-translate-y-1 hover:shadow-lift hover:border-ocean-200;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold
+      transition-colors duration-150 cursor-pointer select-none;
+  }
+  .chip-off {
+    @apply bg-slate-100 text-slate-600 hover:bg-slate-200;
+  }
+  .chip-on {
+    @apply bg-ocean-600 text-white hover:bg-ocean-700;
+  }
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide;
+  }
+
+  /* Skeleton shimmer --------------------------------------------------------- */
+  .skeleton {
+    @apply relative overflow-hidden rounded-lg bg-slate-200/70;
+  }
+  .skeleton::after {
+    content: '';
+    @apply absolute inset-0 -translate-x-full animate-shimmer;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+  }
+
+  .glass {
+    @apply border border-white/15 bg-white/10 backdrop-blur-md;
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  .text-balance { text-wrap: balance; }
+  .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+}
+
+/* Animated travel map -------------------------------------------------------- */
+@keyframes mapPulse {
+  0%, 100% { transform: scale(0.9); opacity: 0.2; }
+  50% { transform: scale(1.35); opacity: 0.05; }
+}
+@keyframes mapRing {
+  0%, 100% { opacity: 0.18; transform: scale(0.96); }
+  50% { opacity: 0.5; transform: scale(1.04); }
+}
+@keyframes mapDash {
+  to { stroke-dashoffset: -36; }
+}
+@keyframes mapCompass {
+  0%, 100% { transform: rotate(-6deg); }
+  50% { transform: rotate(8deg); }
+}
+.map-pulse {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: mapPulse 2.6s ease-in-out infinite;
+}
+.map-ring {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: mapRing 5s ease-in-out infinite;
+}
+.map-route {
+  animation: mapDash 1.4s linear infinite;
+}
+.map-compass {
+  animation: mapCompass 6s ease-in-out infinite;
+}
+
+/* Print — clean itinerary sheets ------------------------------------------- */
+@media print {
+  .no-print { display: none !important; }
+  body { background: #fff !important; }
+  .print-full { box-shadow: none !important; border: none !important; }
+}
+
+/* Reduced motion — honor user preference globally --------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

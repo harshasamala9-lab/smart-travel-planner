@@ -1,0 +1,62 @@
+# Render.com blueprint for the Smart Travel Planner API.
+# Deploy: Render Dashboard -> New -> Blueprint -> point at this repo.
+#
+# IMPORTANT (production validation in app/config.py): when APP_ENV=production
+# the backend refuses to start unless GEMINI_API_KEY, GOOGLE_MAPS_API_KEY and
+# OPENWEATHER_API_KEY are all set, DEBUG=false and AUTO_CREATE_SCHEMA=false.
+# Set APP_ENV=development for a first deploy (docs visible), then switch to
+# production after adding the three keys.
+
+services:
+  - type: web
+    name: smart-travel-api
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --no-access-log
+    healthCheckPath: /health/ready
+    envVars:
+      - key: APP_ENV
+        value: development          # switch to production once all keys exist
+      - key: DEBUG
+        value: "false"
+      - key: LOG_LEVEL
+        value: INFO
+      - key: AUTO_CREATE_SCHEMA
+        value: "false"              # schema.sql is applied to Neon manually
+      # --- fill these in the Render dashboard (do not commit real values) ---
+      - key: DATABASE_URL
+        sync: false                 # Neon pooled connection string
+      - key: NEON_AUTH_BASE_URL
+        sync: false
+      - key: NEON_AUTH_JWKS_URL
+        sync: false
+      - key: NEON_AUTH_ORIGIN
+        sync: false
+      - key: NEON_AI_GATEWAY_BASE_URL
+        sync: false
+      - key: NEON_AI_GATEWAY_TOKEN
+        sync: false
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_ENDPOINT_URL_S3
+        sync: false
+      - key: AWS_REGION
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GOOGLE_MAPS_API_KEY
+        sync: false
+      - key: OPENWEATHER_API_KEY
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false                 # e.g. https://localhost,https://<vercel-url>
+      - key: ALLOWED_HOSTS
+        sync: false                 # e.g. localhost,.onrender.com
+      - key: FRONTEND_URL
+        sync: false                 # your Vercel URL
+      - key: GOOGLE_OAUTH_REDIRECT_URL
+        sync: false                 # https://<vercel-url>/auth/callback

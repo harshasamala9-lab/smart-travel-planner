@@ -1,0 +1,42 @@
+# Secrets
+.env
+backend/.env
+*.env
+!.env.example
+!backend/.env.example
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local databases
+*.db
+*.sqlite
+*.sqlite3
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+.neon
+node_modules/
+.env.local
+
+# Build output (rebuilt in Docker / CI)
+frontend/dist/
+frontend/android/app/build/
+frontend/android/.gradle/
+frontend/android/build/
+
+# Render
+.render/
+
+# Local build tooling / installers (not part of the app)
+tools/

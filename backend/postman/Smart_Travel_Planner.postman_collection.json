@@ -1,0 +1,1795 @@
+{
+  "info": {
+    "_postman_id": "d4c9f7a2-2e9b-4d1d-9b8e-8f0e7a6c5b41",
+    "name": "Smart Travel Planner API",
+    "description": "Backend API collection for the Smart Travel Planner. Set base_url, then run the Authentication folder (or install the environment and send Login). Test scripts populate access tokens, place IDs, itinerary/review/notification IDs, and share tokens as you run requests. A collection pre-request script sets future trip dates automatically. No secrets are stored in this collection. Requests are grouped by module; destructive DELETE requests are labelled and should be run last.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://127.0.0.1:8000"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "description": "Unauthenticated liveness and readiness checks.",
+      "item": [
+        {
+          "name": "API index",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": []
+            },
+            "description": "API links and version.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Liveness and integration flags",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Does not call paid external APIs.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Readiness with database round trip",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health/ready",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "health",
+                "ready"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Authentication",
+      "description": "Neon Auth (Managed Better Auth). Tokens are stored in the environment, never in this collection.",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/register",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "register"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"traveler@example.com\",\n  \"password\": \"StrongPass123\",\n  \"full_name\": \"Test Traveler\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "pm.test(\"Request succeeded\", () => pm.response.to.be.success);",
+                    "const data = pm.response.json();",
+                    "if (data.session && data.session.access_token) {",
+                    "  pm.environment.set(\"access_token\", data.session.access_token);",
+                    "  if (data.session.refresh_token) {",
+                    "    pm.environment.set(\"refresh_token\", data.session.refresh_token);",
+                    "  }",
+                    "}"
+                  ]
+                }
+              }
+            ]
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.session && body.session.access_token) {",
+                  "  pm.environment.set('access_token', body.session.access_token);",
+                  "  if (body.session.refresh_token) {",
+                  "    pm.environment.set('refresh_token', body.session.refresh_token);",
+                  "  }",
+                  "}",
+                  "pm.test('authentication succeeded', () => pm.response.to.be.success);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"traveler@example.com\",\n  \"password\": \"StrongPass123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "pm.test(\"Request succeeded\", () => pm.response.to.be.success);",
+                    "const data = pm.response.json();",
+                    "if (data.session && data.session.access_token) {",
+                    "  pm.environment.set(\"access_token\", data.session.access_token);",
+                    "  if (data.session.refresh_token) {",
+                    "    pm.environment.set(\"refresh_token\", data.session.refresh_token);",
+                    "  }",
+                    "}"
+                  ]
+                }
+              }
+            ]
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.session && body.session.access_token) {",
+                  "  pm.environment.set('access_token', body.session.access_token);",
+                  "  if (body.session.refresh_token) {",
+                  "    pm.environment.set('refresh_token', body.session.refresh_token);",
+                  "  }",
+                  "}",
+                  "pm.test('authentication succeeded', () => pm.response.to.be.success);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Refresh session",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/refresh",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "refresh"
+              ]
+            },
+            "description": "Exchanges the 7-day session token (refresh_token from register/login) for a fresh 15-minute access JWT. The session token does not rotate.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{refresh_token}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "pm.test(\"Request succeeded\", () => pm.response.to.be.success);",
+                    "const data = pm.response.json();",
+                    "if (data.session && data.session.access_token) {",
+                    "  pm.environment.set(\"access_token\", data.session.access_token);",
+                    "  if (data.session.refresh_token) {",
+                    "    pm.environment.set(\"refresh_token\", data.session.refresh_token);",
+                    "  }",
+                    "}"
+                  ]
+                }
+              }
+            ]
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.session && body.session.access_token) {",
+                  "  pm.environment.set('access_token', body.session.access_token);",
+                  "  if (body.session.refresh_token) {",
+                  "    pm.environment.set('refresh_token', body.session.refresh_token);",
+                  "  }",
+                  "}",
+                  "pm.test('authentication succeeded', () => pm.response.to.be.success);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/logout",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "logout"
+              ]
+            },
+            "description": "Revokes the Neon Auth session identified by refresh_token (the 7-day session token). Run this last, or re-authenticate before continuing.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{refresh_token}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Google OAuth authorization URL",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/google/url?redirect_to=http%3A%2F%2Flocalhost%3A5173%2Fauth%2Fcallback",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "google",
+                "url"
+              ],
+              "query": [
+                {
+                  "key": "redirect_to",
+                  "value": "http://localhost:5173/auth/callback"
+                }
+              ]
+            },
+            "description": "Open authorization_url in a browser. Neon Auth (Managed Better Auth) performs the OAuth exchange itself and redirects the user to redirect_to (a registered trusted domain).",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "description": "Profile, preferences, history, and saved destinations.",
+      "item": [
+        {
+          "name": "Get my profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "me"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Update my profile",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "me"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Test Traveler\",\n  \"phone\": \"+44 20 0000 0000\",\n  \"preferred_currency\": \"USD\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get my preferences",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/me/preferences",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "me",
+                "preferences"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Create or replace preferences",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/me/preferences",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "me",
+                "preferences"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"home_city\": \"London\",\n  \"interests\": [\n    \"history\",\n    \"food\"\n  ],\n  \"activity_preferences\": [\n    \"museums\",\n    \"walking tours\"\n  ],\n  \"accommodation_preference\": \"midrange_hotel\",\n  \"transportation_preference\": \"mixed\",\n  \"budget_level\": \"moderate\",\n  \"dietary_preferences\": [\n    \"vegetarian\"\n  ],\n  \"accessibility_needs\": \"Step-free access where possible\",\n  \"currency\": \"USD\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Travel history",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/me/history?limit=20&offset=0",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "me",
+                "history"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "List saved destinations",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/me/saved-destinations",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "me",
+                "saved-destinations"
+              ]
+            },
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.items && body.items.length > 0) {",
+                  "  pm.environment.set('place_id', body.items[0].place_id);",
+                  "}",
+                  "pm.test('saved destinations loaded', () => pm.response.to.be.success);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Save a destination",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/me/saved-destinations",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "me",
+                "saved-destinations"
+              ]
+            },
+            "description": "The place is verified through Google Places before saving.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"place_id\": \"{{place_id}}\",\n  \"notes\": \"Visit in the morning\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete a saved destination",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/me/saved-destinations/{{place_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "me",
+                "saved-destinations",
+                "{{place_id}}"
+              ]
+            },
+            "description": "Destructive: removes the saved destination identified by {{place_id}}."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Destinations and Routes",
+      "description": "Google Places (New), Geocoding, photo proxy, and Routes.",
+      "item": [
+        {
+          "name": "Search destinations",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/destinations/search?query=Kyoto&limit=5",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "destinations",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "query",
+                  "value": "Kyoto"
+                },
+                {
+                  "key": "limit",
+                  "value": "5"
+                }
+              ]
+            },
+            "description": "",
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "pm.test(\"Search succeeded\", () => pm.response.to.have.status(200));",
+                    "const data = pm.response.json();",
+                    "if (data.items && data.items.length) {",
+                    "  pm.environment.set(\"place_id\", data.items[0].place_id);",
+                    "  pm.environment.set(\"destination_place_id\", data.items[0].place_id);",
+                    "}"
+                  ]
+                }
+              }
+            ]
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.items && body.items.length > 0) {",
+                  "  pm.environment.set('place_id', body.items[0].place_id);",
+                  "  pm.environment.set('destination_place_id', body.items[0].place_id);",
+                  "}",
+                  "pm.test('destination search succeeded', () => pm.response.to.be.success);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Place details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/destinations/{{place_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "destinations",
+                "{{place_id}}"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Place photo",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "image/*"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/destinations/photo?photo_name=places%2F{{place_id}}%2Fphotos%2Fphoto-reference&max_width=1200",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "destinations",
+                "photo"
+              ],
+              "query": [
+                {
+                  "key": "photo_name",
+                  "value": "places/{{place_id}}/photos/photo-reference"
+                },
+                {
+                  "key": "max_width",
+                  "value": "1200"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Calculate route",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/destinations/route",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "destinations",
+                "route"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"origin\": {\n    \"latitude\": 35.0116,\n    \"longitude\": 135.7681,\n    \"name\": \"Kyoto Station\"\n  },\n  \"destination\": {\n    \"place_id\": \"{{place_id}}\"\n  },\n  \"travel_mode\": \"WALK\",\n  \"include_steps\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Nearby attractions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/destinations/{{place_id}}/attractions?radius_m=10000&limit=15",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "destinations",
+                "{{place_id}}",
+                "attractions"
+              ],
+              "query": [
+                {
+                  "key": "radius_m",
+                  "value": "10000"
+                },
+                {
+                  "key": "limit",
+                  "value": "15"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Nearby restaurants",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/destinations/{{place_id}}/restaurants?radius_m=5000&limit=15",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "destinations",
+                "{{place_id}}",
+                "restaurants"
+              ],
+              "query": [
+                {
+                  "key": "radius_m",
+                  "value": "5000"
+                },
+                {
+                  "key": "limit",
+                  "value": "15"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Nearby by Google place type",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/destinations/{{place_id}}/nearby?types=tourist_attraction%2Cmuseum&radius_m=10000",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "destinations",
+                "{{place_id}}",
+                "nearby"
+              ],
+              "query": [
+                {
+                  "key": "types",
+                  "value": "tourist_attraction,museum"
+                },
+                {
+                  "key": "radius_m",
+                  "value": "10000"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Itineraries",
+      "description": "AI generation, CRUD, sharing, and PDF export.",
+      "item": [
+        {
+          "name": "Generate itinerary",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/itineraries/generate",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "itineraries",
+                "generate"
+              ]
+            },
+            "description": "Requires GOOGLE_MAPS_API_KEY and GEMINI_API_KEY.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"destination\": \"Kyoto, Japan\",\n  \"start_date\": \"{{start_date}}\",\n  \"end_date\": \"{{end_date}}\",\n  \"travellers\": 2,\n  \"total_budget\": 2500,\n  \"currency\": \"USD\",\n  \"interests\": [\n    \"history\",\n    \"food\"\n  ],\n  \"activities\": [\n    \"temples\",\n    \"markets\"\n  ],\n  \"accommodation_preference\": \"midrange_hotel\",\n  \"transportation_preference\": \"mixed\",\n  \"pace\": \"balanced\",\n  \"include_routes\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "pm.test(\"Itinerary generated\", () => pm.response.to.have.status(201));",
+                    "const data = pm.response.json();",
+                    "if (data.id) pm.environment.set(\"itinerary_id\", data.id);"
+                  ]
+                }
+              }
+            ]
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.id) {",
+                  "  pm.environment.set('itinerary_id', body.id);",
+                  "}",
+                  "if (body.destination_place_id) {",
+                  "  pm.environment.set('destination_place_id', body.destination_place_id);",
+                  "}",
+                  "const activities = (body.days || []).flatMap((day) => day.activities || []);",
+                  "const firstPlace = activities.find((activity) => activity.place_id);",
+                  "if (firstPlace) {",
+                  "  pm.environment.set('place_id', firstPlace.place_id);",
+                  "}",
+                  "pm.test('itinerary generated', () => pm.response.to.be.success);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List my itineraries",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/itineraries?limit=20&offset=0",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "itineraries"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.items && body.items.length > 0) {",
+                  "  pm.environment.set('itinerary_id', body.items[0].id);",
+                  "}",
+                  "pm.test('itineraries loaded', () => pm.response.to.be.success);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get itinerary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/itineraries/{{itinerary_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "itineraries",
+                "{{itinerary_id}}"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Update itinerary metadata",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/itineraries/{{itinerary_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "itineraries",
+                "{{itinerary_id}}"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"My edited Kyoto plan\",\n  \"status\": \"saved\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Replace itinerary days",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/itineraries/{{itinerary_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "itineraries",
+                "{{itinerary_id}}"
+              ]
+            },
+            "description": "Days must be contiguous, include exactly one entry for every date between the itinerary start and end dates, and stay within those dates.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Rebuilt Kyoto plan\",\n  \"total_budget\": 2500,\n  \"days\": [\n    {\n      \"day_number\": 1,\n      \"date\": \"{{start_date}}\",\n      \"title\": \"Custom day one\",\n      \"summary\": \"User-edited day.\",\n      \"activities\": [\n        {\n          \"place_id\": \"{{place_id}}\",\n          \"name\": \"Custom visit\",\n          \"category\": \"attraction\",\n          \"start_time\": \"10:00\",\n          \"end_time\": \"12:00\",\n          \"estimated_cost\": 20\n        }\n      ]\n    },\n    {\n      \"day_number\": 2,\n      \"date\": \"{{day_2_date}}\",\n      \"title\": \"Custom day two\",\n      \"summary\": \"A second edited day.\",\n      \"activities\": [\n        {\n          \"name\": \"Free walking tour\",\n          \"category\": \"other\",\n          \"start_time\": \"09:30\",\n          \"end_time\": \"11:30\",\n          \"estimated_cost\": 0\n        }\n      ]\n    },\n    {\n      \"day_number\": 3,\n      \"date\": \"{{day_3_date}}\",\n      \"title\": \"Custom day three\",\n      \"summary\": \"A relaxed final day.\",\n      \"activities\": []\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create share link",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/itineraries/{{itinerary_id}}/share",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "itineraries",
+                "{{itinerary_id}}",
+                "share"
+              ]
+            },
+            "description": "The raw token is returned once. Only its SHA-256 hash is stored.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"expires_in_days\": 7\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "pm.test(\"Share created\", () => pm.response.to.have.status(201));",
+                    "const data = pm.response.json();",
+                    "if (data.token) pm.environment.set(\"share_token\", data.token);"
+                  ]
+                }
+              }
+            ]
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.token) {",
+                  "  pm.environment.set('share_token', body.token);",
+                  "}",
+                  "pm.test('share link created', () => pm.response.to.be.success);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List share links",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/itineraries/{{itinerary_id}}/shares",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "itineraries",
+                "{{itinerary_id}}",
+                "shares"
+              ]
+            },
+            "description": "Tokens are never returned by this endpoint."
+          },
+          "response": []
+        },
+        {
+          "name": "Revoke all share links",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/itineraries/{{itinerary_id}}/shares",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "itineraries",
+                "{{itinerary_id}}",
+                "shares"
+              ]
+            },
+            "description": "Destructive: revokes every active public share link for this itinerary."
+          },
+          "response": []
+        },
+        {
+          "name": "Export itinerary PDF",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/pdf"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/itineraries/{{itinerary_id}}/export/pdf",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "itineraries",
+                "{{itinerary_id}}",
+                "export",
+                "pdf"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Delete itinerary",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/itineraries/{{itinerary_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "itineraries",
+                "{{itinerary_id}}"
+              ]
+            },
+            "description": "Destructive: deletes the itinerary, its days/activities, and all share links. Run after share/PDF requests."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Recommendations",
+      "description": "Deterministic ranking of real Google Places results.",
+      "item": [
+        {
+          "name": "Recommend places",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/recommendations/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "recommendations"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"destination\": \"Kyoto\",\n  \"interests\": [\n    \"history\",\n    \"food\"\n  ],\n  \"budget_level\": \"moderate\",\n  \"include_hotels\": true,\n  \"limit\": 5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Weather",
+      "description": "Observed weather and honest forecast coverage.",
+      "item": [
+        {
+          "name": "Weather for destination",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/weather/{{weather_destination}}?start_date={{start_date}}&end_date={{end_date}}&units=metric",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "weather",
+                "{{weather_destination}}"
+              ],
+              "query": [
+                {
+                  "key": "start_date",
+                  "value": "{{start_date}}"
+                },
+                {
+                  "key": "end_date",
+                  "value": "{{end_date}}"
+                },
+                {
+                  "key": "units",
+                  "value": "metric"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Reviews",
+      "description": "User reviews for verified Google Places locations.",
+      "item": [
+        {
+          "name": "Create review",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/reviews",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reviews"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"place_id\": \"{{place_id}}\",\n  \"rating\": 5,\n  \"title\": \"Beautiful place\",\n  \"comment\": \"Go early; it gets crowded later.\",\n  \"visited_on\": \"{{visited_on}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "pm.test(\"Review created\", () => pm.response.to.have.status(201));",
+                    "const data = pm.response.json();",
+                    "if (data.id) pm.environment.set(\"review_id\", data.id);"
+                  ]
+                }
+              }
+            ]
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.id) {",
+                  "  pm.environment.set('review_id', body.id);",
+                  "}",
+                  "pm.test('review created', () => pm.response.to.be.success);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "My reviews",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/reviews/me?limit=20&offset=0",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reviews",
+                "me"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.items && body.items.length > 0) {",
+                  "  pm.environment.set('review_id', body.items[0].id);",
+                  "}",
+                  "pm.test('reviews loaded', () => pm.response.to.be.success);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reviews for a place",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/reviews/place/{{place_id}}?limit=20&offset=0",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reviews",
+                "place",
+                "{{place_id}}"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Update my review",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/reviews/{{review_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reviews",
+                "{{review_id}}"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rating\": 4,\n  \"comment\": \"Still excellent, slightly crowded.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete my review",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/reviews/{{review_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "reviews",
+                "{{review_id}}"
+              ]
+            },
+            "description": "Destructive: deletes the review identified by {{review_id}}."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "description": "In-app notifications. A trip_generated notification is created after generation.",
+      "item": [
+        {
+          "name": "List notifications",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/notifications?unread_only=False&limit=20&offset=0",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications"
+              ],
+              "query": [
+                {
+                  "key": "unread_only",
+                  "value": "False"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            },
+            "description": "",
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "pm.test(\"Notifications listed\", () => pm.response.to.have.status(200));",
+                    "const data = pm.response.json();",
+                    "if (data.items && data.items.length) {",
+                    "  pm.environment.set(\"notification_id\", data.items[0].id);",
+                    "}"
+                  ]
+                }
+              }
+            ]
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.items && body.items.length > 0) {",
+                  "  pm.environment.set('notification_id', body.items[0].id);",
+                  "}",
+                  "pm.test('notifications loaded', () => pm.response.to.be.success);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Mark all notifications read",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/notifications/read-all",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "read-all"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Mark one notification read",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/notifications/{{notification_id}}/read",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "{{notification_id}}",
+                "read"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Delete notification",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/notifications/{{notification_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "{{notification_id}}"
+              ]
+            },
+            "description": "Destructive: deletes the notification identified by {{notification_id}}."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Analytics and Reports",
+      "description": "Currency-safe analytics and CSV export.",
+      "item": [
+        {
+          "name": "My analytics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/analytics/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "analytics",
+                "me"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Export CSV report",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "text/csv"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/analytics/me/export.csv",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "analytics",
+                "me",
+                "export.csv"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Public Sharing",
+      "description": "Read-only public view. The token is a bearer secret; do not log or post it.",
+      "item": [
+        {
+          "name": "View shared itinerary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/shared/itineraries/{{share_token}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "shared",
+                "itineraries",
+                "{{share_token}}"
+              ]
+            },
+            "description": "No authentication. Invalid, expired, revoked, or deleted-itinerary links return 404.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "const start = new Date();",
+          "start.setUTCHours(12, 0, 0, 0);",
+          "start.setUTCDate(start.getUTCDate() + 7);",
+          "const iso = (value) => value.toISOString().slice(0, 10);",
+          "const addDays = (value, amount) => {",
+          "  const copy = new Date(value);",
+          "  copy.setUTCDate(copy.getUTCDate() + amount);",
+          "  return copy;",
+          "};",
+          "const visited = new Date();",
+          "visited.setUTCHours(12, 0, 0, 0);",
+          "visited.setUTCDate(visited.getUTCDate() - 1);",
+          "pm.environment.set('start_date', iso(start));",
+          "pm.environment.set('day_2_date', iso(addDays(start, 1)));",
+          "pm.environment.set('day_3_date', iso(addDays(start, 2)));",
+          "pm.environment.set('end_date', iso(addDays(start, 2)));",
+          "pm.environment.set('visited_on', iso(visited));"
+        ]
+      }
+    }
+  ]
+}
