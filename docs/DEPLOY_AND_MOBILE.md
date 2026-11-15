@@ -23,7 +23,10 @@ The service is defined by `render.yaml` and built from the root `Dockerfile`:
 - **Region:** Singapore (same region as the Neon branch)
 - **Health check:** `/health`
 - **Repository:** `github.com/harshasamala9-lab/smart-travel-planner`, branch `main`
-- **Auto-deploy:** on every push to `main`
+- **Deploys:** start a build with **Manual Deploy → Deploy latest commit** in the
+  dashboard, or `POST /v1/services/<service-id>/deploys` with a Render API key.
+  Automatic deploys on push require the Render GitHub App to be installed for
+  the repository (Dashboard → Account Settings → GitHub).
 
 ### Environment variables (Render dashboard → Environment)
 

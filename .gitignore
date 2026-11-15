@@ -40,3 +40,7 @@ frontend/android/build/
 
 # Local build tooling / installers (not part of the app)
 tools/
+
+# Built binaries
+*.apk
+*.aab
