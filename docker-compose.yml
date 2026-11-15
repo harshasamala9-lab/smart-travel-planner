@@ -20,6 +20,12 @@ services:
     environment:
       # The container always serves the built SPA from this path.
       FRONTEND_DIST_PATH: /app/frontend/dist
+    # Some Linux desktop hosts run systemd-resolved on 127.0.0.53, which
+    # containers cannot reach; public resolvers keep the image able to resolve
+    # Neon, Google and OpenWeather from inside the container.
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/health"]

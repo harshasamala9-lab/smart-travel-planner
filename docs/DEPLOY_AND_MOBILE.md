@@ -1,98 +1,150 @@
-# Deploying & Mobile — Smart Travel Planner
+# Deployment & Mobile — Smart Travel Planner
 
-Three targets are covered here:
+The app ships as **one Docker image that serves both the FastAPI API and the
+built React SPA on the same origin**. That keeps cookies, CORS and OAuth
+redirects simple and means there is only one thing to deploy.
 
-1. **Local (PC)** — already working: `start-dev.cmd` runs backend (port 8000) + frontend (port 5173).
-2. **Web hosting on Vercel** — hosts the React frontend.
-3. **Android APK** — installs the same app as a real phone app (Capacitor).
+| Target | URL / artifact | Status |
+| --- | --- | --- |
+| Production web app | <https://smart-travel-planner-nk60.onrender.com> | Live |
+| Local full stack | `http://127.0.0.1:8000` | `docker compose up -d --build` |
+| Android APK | `frontend/android/app/build/outputs/apk/debug/app-debug.apk` | Debug-signed, installable |
+| Installable PWA | Same production URL | Install from Chrome / Safari |
 
 ---
 
-## 1. Host the frontend on Vercel
+## 1. Render (production)
 
-`frontend/vercel.json` is already configured (SPA rewrites, asset caching).
+The service is defined by `render.yaml` and built from the root `Dockerfile`:
 
-### Option A — Vercel Dashboard (easiest)
-1. Push this project to GitHub (or zip-upload).
-2. Go to <https://vercel.com/new>, import the repo.
-3. **Root Directory:** `frontend`
-4. Framework preset: **Vite** (auto-detected from `vercel.json`).
-5. Environment variable (Production):
-   - `VITE_API_BASE_URL` → your public backend URL (see "About the backend" below).
-6. Click **Deploy**. Done.
-7. **After deploying:** copy your final URL (e.g. `https://your-app.vercel.app`)
-   and append it to `CORS_ORIGINS` in `backend/.env` (comma-separated), then
-   restart the backend — browsers enforce CORS against every origin.
+- **Type:** Web Service, **runtime:** Docker
+- **Plan:** Free (spins down after 15 minutes of inactivity; the next request
+  takes ~50 seconds to wake it)
+- **Region:** Singapore (same region as the Neon branch)
+- **Health check:** `/health`
+- **Repository:** `github.com/harshasamala9-lab/smart-travel-planner`, branch `main`
+- **Auto-deploy:** on every push to `main`
 
-### Option B — Vercel CLI
-```cmd
+### Environment variables (Render dashboard → Environment)
+
+Set these as secret values; never commit them.
+
+| Variable | Purpose |
+| --- | --- |
+| `DATABASE_URL` | Neon **pooled** Postgres URL (`postgresql://…`) |
+| `NEON_AUTH_BASE_URL`, `NEON_AUTH_JWKS_URL` | Neon Auth (Managed Better Auth) |
+| `NEON_AUTH_ORIGIN` | Public app origin, e.g. `https://smart-travel-planner-nk60.onrender.com` |
+| `CORS_ORIGINS` | Comma-separated exact origins (web + `https://localhost` for the APK) |
+| `ALLOWED_HOSTS` | `smart-travel-planner-nk60.onrender.com` |
+| `FRONTEND_URL`, `GOOGLE_OAUTH_REDIRECT_URL` | Public app origin and `/auth/callback` |
+| `GOOGLE_MAPS_API_KEY` | Places, Geocoding, Routes |
+| `OPENWEATHER_API_KEY` | Current weather + forecast |
+| `GEMINI_API_KEY`, `GROK_API_KEY` | AI itinerary providers (optional) |
+| `AI_PROVIDER_ORDER` | `gemini,grok` (falls through on failure) |
+| `NEON_AI_GATEWAY_*`, `AWS_*`, `NEON_REALTIME_*` | Optional Lakebase primitives |
+
+Optional integrations are genuinely optional: without Maps/AI the app still
+serves the curated 80-destination catalog and generates a deterministic,
+clearly-labelled travel plan.
+
+After changing the public URL, update `CORS_ORIGINS`, `ALLOWED_HOSTS`,
+`FRONTEND_URL`, `GOOGLE_OAUTH_REDIRECT_URL` and `NEON_AUTH_ORIGIN`, then add the
+new origin as a Neon Auth trusted domain:
+
+```bash
+neon neon-auth domain add https://<new-host>
+```
+
+### Deploying manually
+
+```bash
+gh repo view harshasamala9-lab/smart-travel-planner --web   # or push to main
+# Render rebuilds automatically; watch the deploy in the dashboard.
+```
+
+---
+
+## 2. Local full stack (Docker)
+
+```bash
+cp backend/.env.example backend/.env   # then fill in real values
+docker compose up -d --build
+open http://127.0.0.1:8000
+```
+
+The image builds the React app in a Node stage and copies `dist/` into the
+Python runtime. `backend/.env` is mounted at runtime, never baked into the
+image (`.dockerignore` excludes it). `docker compose` also pins public DNS
+resolvers because some Linux desktops run `systemd-resolved` on `127.0.0.53`,
+which containers cannot reach.
+
+---
+
+## 3. Android APK (Capacitor 8)
+
+Requirements: **JDK 21** and Android SDK **platform 36 / build-tools 36.0.0**.
+
+```bash
+export JAVA_HOME=/path/to/jdk-21
+export ANDROID_HOME=/path/to/android-sdk
+
 cd frontend
-npm install -g vercel
-vercel login
-set VITE_API_BASE_URL=https://YOUR-BACKEND.example.com
-vercel --prod
+VITE_API_BASE_URL=https://smart-travel-planner-nk60.onrender.com npm run build
+npx cap sync android
+cd android
+./gradlew assembleDebug
 ```
 
-### About the backend (important, honest note)
-Vercel hosts **static frontends** — the FastAPI backend needs a long-running
-server, so it cannot be "deployed to Vercel" as-is. The database (Neon
-Postgres) and auth (Neon Auth) are already cloud-hosted, which is why the
-backend itself is the only piece that must run somewhere reachable:
+Result: `frontend/android/app/build/outputs/apk/debug/app-debug.apk`
 
-- **Easiest:** keep running it on your PC with `start-backend-lan.cmd`
-  (reachable from your phone on the same Wi-Fi), or
-- **Public URL (free):** deploy `backend/` to Render — the blueprint
-  `backend/render.yaml` and `backend/Dockerfile` are ready; add the secret
-  values (same ones as `backend/.env`) in the Render dashboard. Your public
-  API URL becomes `https://<service>.onrender.com` — put that into
-  `VITE_API_BASE_URL` on Vercel and in `ANDROID_API_BASE_URL` for the APK.
-
-While the backend runs only on your PC, use the app from your PC in the
-browser — the hosted Vercel site and phone APK need a reachable backend URL.
-
----
-
-## 2. Android APK (Capacitor)
-
-### One-time setup (~10 min, no admin rights, ~700 MB downloads)
-```cmd
-powershell -ExecutionPolicy Bypass -File tools\setup_android_sdk.ps1
-```
-Installs JDK 21 + Android SDK into `tools\` (verified versions for Capacitor 7).
-
-### Build the APK
-```cmd
-build-apk.cmd
-```
-- Default `ANDROID_API_BASE_URL=http://10.0.2.2:8000` — for the **emulator**
-  (10.0.2.2 is the PC's loopback seen from Android).
-- For a **real phone** on the same Wi-Fi:
-  ```cmd
-  ipconfig                     REM find your IPv4, e.g. 192.168.1.5
-  set ANDROID_API_BASE_URL=http://192.168.1.5:8000
-  build-apk.cmd
-  ```
-- Start the backend so the phone can reach it: `start-backend-lan.cmd`
-
-Result: `frontend\android\app\build\outputs\apk\debug\app-debug.apk`
 Copy it to the phone and open it (allow "install unknown apps" once).
 
-### Where the API URL lives
-The web app is built with `VITE_API_BASE_URL` baked in (`frontend/src/lib/api.js`).
-The APK build script sets it before `npm run build` and then runs
-`npx cap sync android`. Changing the backend URL = rebuild the APK.
+- The API URL is baked into the JS bundle at build time, so changing hosts means
+  rebuilding the APK.
+- The Capacitor WebView origin is `https://localhost`; it is already present in
+  `CORS_ORIGINS` and Neon Auth trusted domains.
+- `assembleDebug` is signed with the local debug keystore, which is fine for
+  personal installation. For Play Store distribution, create a release keystore
+  (`keytool -genkeypair`) and a `signingConfig`, then run `assembleRelease`.
 
-### Also available: install-as-PWA (no APK needed)
-The frontend now ships a web manifest (`public/manifest.webmanifest`) with
-branded icons. On Android Chrome open the site → ⋮ menu → **Add to Home
-screen** → it launches full-screen like a native app. Same for iOS Safari via
-Share → Add to Home Screen.
+---
 
-### Notes
-- Debug APKs are for personal use; a signed release APK needs a keystore
-  (`keytool -genkeypair` + `gradlew assembleRelease` with signing config).
-- Google Sign-In from the APK/PWA requires the callback origin to be
-  registered in Neon Auth (`neon neon-auth domain add`). Email/password works
-  everywhere already.
-- The backend's `CORS_ORIGINS` must include `https://localhost` (the APK
-  origin). `backend/.env` has been updated for this.
+## 4. Install as a PWA (no APK needed)
+
+Open the production URL in Chrome (Android) or Safari (iOS) → **Add to Home
+screen**. The app ships a web manifest and branded icons, and launches
+full-screen with the same functionality as the APK.
+
+---
+
+## 5. Verification checklist
+
+```bash
+curl -s https://smart-travel-planner-nk60.onrender.com/health | jq
+# → status ok, environment production, integrations flagged individually
+
+curl -s -o /dev/null -w '%{http_code}\n' https://smart-travel-planner-nk60.onrender.com/explore
+# → 200 (SPA fallback route)
+
+# Travel-only search, authenticated
+curl -s "https://smart-travel-planner-nk60.onrender.com/api/v1/destinations/search?query=laptop%20repair" \
+  -H "Authorization: Bearer $TOKEN"
+# → {"count": 0, "message": "Smart Travel Planner searches travel only. …"}
+```
+
+The same endpoints were exercised end-to-end on the deployed service:
+login, travel-only search, featured destinations, curated detail, weather and
+itinerary generation (returns `201` with the deterministic planner when AI
+providers are unavailable).
+
+---
+
+## Notes
+
+- Google Places/Routes and Grok require valid, unrestricted provider keys. When
+  they fail, the app degrades honestly instead of erroring: curated catalog for
+  search, deterministic planner for itineraries, and explicit warnings.
+- OpenWeather forecast coverage is limited to the provider's horizon.
+- Secrets live only in `backend/.env` locally and Render environment variables in
+  production. `backend/.env`, `.env.local`, `frontend/.env` and `tools/` are
+  gitignored.

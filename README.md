@@ -22,13 +22,15 @@ ports in `docker-compose.yml`).
 | Test/offline database | SQLite (never production) |
 | Authentication | Neon Auth (Managed Better Auth): email/password + Google social OAuth |
 | Token verification | EdDSA/Ed25519 via the Neon Auth JWKS; optional HS256 for tests only |
-| AI | Google Gemini structured JSON output, validated and retried; optional Neon AI Gateway override |
-| Places / routes | Google Places API (New), Geocoding API, Routes API |
+| AI | Gemini + Grok (xAI) structured JSON, validated and retried, provider fallback; optional Neon AI Gateway override; deterministic planner when no provider is reachable |
+| Places / routes | Google Places API (New), Geocoding API, Routes API, with the curated 80-destination catalog as fallback |
 | Weather | OpenWeather current + forecast, with forecast-coverage honesty |
 | Files | Neon Object Storage (S3-compatible, branches with the database) |
 | Reports / export | Currency-safe analytics, CSV, ReportLab PDF with Unicode font |
-| Tests | 106 passing, 90% coverage offline (no API quota or credentials required) |
+| Tests | 108 passing, offline (no API quota or credentials required) |
 | API docs | Swagger `/docs`, ReDoc `/redoc`, OpenAPI `/openapi.json` |
+| Production | <https://smart-travel-planner-nk60.onrender.com> — single Docker service (API + SPA) |
+| Android | Capacitor 8 debug APK (see `docs/DEPLOY_AND_MOBILE.md`) |
 
 ---
 
