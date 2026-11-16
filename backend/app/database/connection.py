@@ -109,6 +109,17 @@ class PostgresTransaction:
 
 
 class Database:
+    # Neon's transaction pooler closes idle TCP connections after a few
+    # minutes. Long-lived containers therefore see stale sockets on the first
+    # checkout after quiet periods. `check` validates (and silently replaces)
+    # such connections, `max_lifetime` rotates them proactively, and TCP
+    # keepalives keep the socket healthy through idle stretches. Connection
+    # acquisition is additionally retried so a cold Neon compute (which can
+    # take several seconds to wake) never surfaces as "database unavailable".
+    CONNECT_ATTEMPTS = 4
+    CONNECT_BACKOFF_SECONDS = (0.5, 1.0, 2.0, 4.0)
+    CHECKOUT_RETRIES = 2
+
     def __init__(
         self,
         dsn: str,
@@ -119,8 +130,8 @@ class Database:
     ) -> None:
         self.dsn = dsn
         self.is_sqlite = dsn.startswith("sqlite")
-        self._pool_min_size = pool_min_size
-        self._pool_max_size = pool_max_size
+        self._pool_min_size = max(pool_min_size, 1)
+        self._pool_max_size = max(pool_max_size, self._pool_min_size)
         self._pool_timeout = pool_timeout_seconds
         self._pool: Any = None
         self._sqlite_path: str | None = sqlite_path_from_dsn(dsn) if self.is_sqlite else None
@@ -128,6 +139,22 @@ class Database:
     @property
     def dialect(self) -> str:
         return "sqlite" if self.is_sqlite else "postgresql"
+
+    def _postgresql_conninfo(self) -> str:
+        extra_uri = (
+            "connect_timeout=10"
+            "&keepalives=1&keepalives_idle=30&keepalives_interval=10"
+            "&keepalives_count=3"
+        )
+        extra_kw = (
+            " connect_timeout=10"
+            " keepalives=1 keepalives_idle=30 keepalives_interval=10"
+            " keepalives_count=3"
+        )
+        if self.dsn.startswith(("postgresql://", "postgres://", "postgresql+", "postgres+")):
+            separator = "&" if "?" in self.dsn else "?"
+            return f"{self.dsn}{separator}{extra_uri}"
+        return f"{self.dsn}{extra_kw}"
 
     async def connect(self) -> None:
         if self.is_sqlite:
@@ -141,22 +168,54 @@ class Database:
 
         try:
             from psycopg.rows import dict_row
-            from psycopg_pool import AsyncConnectionPool
+            from psycopg_pool import AsyncConnectionPool, ConnectionPool
 
-            self._pool = AsyncConnectionPool(
-                conninfo=self.dsn,
-                min_size=self._pool_min_size,
-                max_size=self._pool_max_size,
-                timeout=self._pool_timeout,
-                open=False,
-                kwargs={
-                    "row_factory": dict_row,
-                    # Safe with Neon's transaction pooler (PgBouncer).
-                    "prepare_threshold": None,
-                },
-            )
-            await self._pool.open(wait=True, timeout=self._pool_timeout)
-            await self.check_health()
+            conninfo = self._postgresql_conninfo()
+            last_error: Exception | None = None
+            for attempt in range(self.CONNECT_ATTEMPTS):
+                pool = AsyncConnectionPool(
+                    conninfo=conninfo,
+                    min_size=self._pool_min_size,
+                    max_size=self._pool_max_size,
+                    timeout=self._pool_timeout,
+                    # Detect and replace sockets that Neon (or any proxy)
+                    # silently closed while idle. NOTE: must be the ASYNC
+                    # checker — the sync variant fails on async connections,
+                    # discarding every connection on checkout.
+                    check=AsyncConnectionPool.check_connection,
+                    max_lifetime=300.0,
+                    max_idle=self._pool_min_size,
+                    reconnect_timeout=self._pool_timeout,
+                    open=False,
+                    kwargs={
+                        "row_factory": dict_row,
+                        # Safe with Neon's transaction pooler (PgBouncer).
+                        "prepare_threshold": None,
+                    },
+                )
+                try:
+                    await pool.open(wait=True, timeout=self._pool_timeout)
+                except Exception as exc:  # noqa: BLE001 - retried below
+                    last_error = exc
+                    await self._close_pool_quietly(pool)
+                    if attempt < self.CONNECT_ATTEMPTS - 1:
+                        delay = self.CONNECT_BACKOFF_SECONDS[attempt]
+                        logger.warning(
+                            "PostgreSQL connection attempt %s/%s failed (%s); "
+                            "retrying in %.1fs",
+                            attempt + 1,
+                            self.CONNECT_ATTEMPTS,
+                            type(exc).__name__,
+                            delay,
+                        )
+                        await asyncio.sleep(delay)
+                        continue
+                    break
+                # Pool is open: keep it and verify it serves queries.
+                self._pool = pool
+                await self.check_health()
+                return
+            raise DatabaseUnavailableError() from last_error
         except DatabaseUnavailableError:
             await self.close()
             raise
@@ -167,10 +226,19 @@ class Database:
                 "Could not connect to the Neon PostgreSQL database."
             ) from exc
 
+    async def _close_pool_quietly(self, pool: Any) -> None:
+        try:
+            await pool.close(timeout=5.0)
+        except Exception:  # pragma: no cover - defensive
+            pass
+
     async def close(self) -> None:
         if self._pool is not None:
-            await self._pool.close()
-            self._pool = None
+            pool, self._pool = self._pool, None
+            try:
+                await pool.close()
+            except Exception:  # pragma: no cover - defensive
+                pass
 
     def _sqlite_connection(self) -> sqlite3.Connection:
         assert self._sqlite_path is not None
@@ -201,16 +269,45 @@ class Database:
         if self._pool is None:
             raise DatabaseUnavailableError("Database connection pool is not initialised.")
         try:
-            async with self._pool.connection() as connection:
-                async with connection.transaction():
-                    yield PostgresTransaction(connection)
-        except DatabaseUnavailableError:
-            raise
-        except Exception as exc:
-            if self._is_operational_error(exc):
-                logger.error("PostgreSQL transaction failed: %s", type(exc).__name__)
-                raise DatabaseUnavailableError() from exc
-            raise
+            import psycopg
+            from psycopg_pool import PoolTimeout
+        except ImportError:  # pragma: no cover - psycopg is a hard dependency
+            psycopg = None  # type: ignore[assignment]
+            PoolTimeout = ()  # type: ignore[assignment]
+
+        for attempt in range(max(self.CHECKOUT_RETRIES, 1)):
+            try:
+                yielded = False
+                async with self._pool.connection() as connection:
+                    async with connection.transaction():
+                        yielded = True
+                        yield PostgresTransaction(connection)
+                return
+            except DatabaseUnavailableError:
+                raise
+            except Exception as exc:
+                # A checkout/first-connection failure (stale socket after an
+                # idle period, cold compute, pool timeout) is retried once
+                # transparently. `yielded` is False exactly when the failure
+                # happened before the caller's work started, so a retry cannot
+                # duplicate side effects.
+                if (
+                    attempt < self.CHECKOUT_RETRIES - 1
+                    and not yielded
+                    and (
+                        (PoolTimeout and isinstance(exc, PoolTimeout))
+                        or (psycopg is not None and isinstance(exc, psycopg.OperationalError))
+                    )
+                ):
+                    logger.warning(
+                        "PostgreSQL connection acquisition failed (%s); retrying once",
+                        type(exc).__name__,
+                    )
+                    continue
+                if self._is_operational_error(exc):
+                    logger.error("PostgreSQL transaction failed: %s", type(exc).__name__)
+                    raise DatabaseUnavailableError() from exc
+                raise
 
     async def execute(self, sql: str, params: Sequence[Any] = ()) -> int:
         async with self.transaction() as tx:
@@ -236,13 +333,23 @@ class Database:
         return isinstance(exc, sqlite3.OperationalError)
 
     async def check_health(self) -> dict[str, str]:
-        try:
-            async with self.transaction() as tx:
-                await tx.fetch_one("SELECT 1 AS ok")
-            return {"status": "up", "dialect": self.dialect}
-        except Exception as exc:
-            logger.error("Database health check failed: %s", type(exc).__name__)
-            raise DatabaseUnavailableError() from exc
+        last_error: Exception | None = None
+        for attempt in range(2):
+            try:
+                async with self.transaction() as tx:
+                    await tx.fetch_one("SELECT 1 AS ok")
+                return {"status": "up", "dialect": self.dialect}
+            except DatabaseUnavailableError:
+                raise
+            except Exception as exc:  # noqa: BLE001 - surfaced as unavailable
+                last_error = exc
+                logger.warning(
+                    "Database health check attempt %s failed: %s",
+                    attempt + 1,
+                    type(exc).__name__,
+                )
+        logger.error("Database health check failed: %s", type(last_error).__name__)
+        raise DatabaseUnavailableError() from last_error
 
     async def initialise_sqlite_schema(self) -> None:
         if not self.is_sqlite:

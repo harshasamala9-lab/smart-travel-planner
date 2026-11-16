@@ -132,6 +132,14 @@ class Settings(BaseSettings):
     grok_temperature: float = Field(default=0.35, ge=0, le=1)
     ai_provider_order: str = "gemini,grok"
 
+    # ---------------------------------------------------------- Open data
+    # Wikipedia + OpenStreetMap need no API key. They keep search, destination
+    # details and itinerary planning working when Google/AI keys are missing,
+    # restricted or rate limited.
+    wikipedia_timeout_seconds: float = Field(default=10.0, gt=0, le=60)
+    wikipedia_geo_cache_ttl_seconds: int = Field(default=21_600, ge=0)
+    wikipedia_extract_cache_ttl_seconds: int = Field(default=86_400, ge=0)
+
     # -------------------------------------------------------------- OpenWeather
     openweather_api_key: SecretStr | None = None
     openweather_timeout_seconds: float = Field(default=10.0, gt=0, le=60)

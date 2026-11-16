@@ -160,6 +160,43 @@ def place(
     }
 
 
+def wiki_attraction(
+    pageid: int,
+    name: str,
+    *,
+    latitude: float = 35.0,
+    longitude: float = 135.7,
+    description: str | None = None,
+    image_url: str | None = None,
+) -> dict[str, Any]:
+    return {
+        "place_id": f"wiki-{pageid}",
+        "name": name,
+        "formatted_address": f"{name} (Kyoto)",
+        "latitude": latitude,
+        "longitude": longitude,
+        "rating": None,
+        "user_rating_count": None,
+        "price_level": None,
+        "types": ["heritage", "wikipedia", "tourist_attraction"],
+        "category": ActivityCategory.ATTRACTION.value,
+        "open_now": None,
+        "business_status": "OPERATIONAL",
+        "google_maps_uri": f"https://www.google.com/maps/search/?api=1&query={latitude},{longitude}",
+        "photo_names": [],
+        "opening_hours": [],
+        "description": description or f"About {name}.",
+        "editorial_summary": description or f"About {name}.",
+        "country": None,
+        "image_url": image_url,
+        "image_alt": name,
+        "image_credit": "Wikipedia / Wikimedia Commons contributors",
+        "best_time": None,
+        "travel_type": "heritage",
+        "source": "Wikipedia (open data)",
+    }
+
+
 class FakeMapsService:
     is_configured = True
 
@@ -588,6 +625,62 @@ class FakeAuthService:
         }
 
 
+class FakeWikipediaService:
+    """Keyless open-data discovery fake; empty by default, seeded per test."""
+
+    is_configured = True
+
+    def __init__(
+        self,
+        *,
+        geocode_result: dict[str, Any] | None = None,
+        attractions: list[dict[str, Any]] | None = None,
+        articles: dict[int, dict[str, Any]] | None = None,
+    ) -> None:
+        self.geocode_result = geocode_result
+        self.attractions = attractions or []
+        self.articles = articles or {}
+        self.geocode_calls: list[str] = []
+        self.nearby_calls: list[dict[str, Any]] = []
+        self.article_calls: list[int] = []
+
+    async def aclose(self) -> None:
+        return None
+
+    async def geocode(self, query: str) -> dict[str, Any] | None:
+        self.geocode_calls.append(query)
+        return self.geocode_result
+
+    async def nearby_attractions(
+        self,
+        *,
+        name: str,
+        latitude: float | None,
+        longitude: float | None,
+        limit: int = 12,
+        radius_m: int = 10_000,
+    ) -> list[dict[str, Any]]:
+        self.nearby_calls.append(
+            {
+                "name": name,
+                "latitude": latitude,
+                "longitude": longitude,
+                "limit": limit,
+                "radius_m": radius_m,
+            }
+        )
+        return self.attractions[:limit]
+
+    async def article_summary(self, pageid: int) -> dict[str, Any] | None:
+        self.article_calls.append(pageid)
+        return self.articles.get(pageid)
+
+
+@pytest.fixture
+def fake_wikipedia() -> FakeWikipediaService:
+    return FakeWikipediaService()
+
+
 @pytest.fixture
 def fake_maps() -> FakeMapsService:
     return FakeMapsService()
@@ -616,12 +709,14 @@ def client(
     fake_weather: FakeWeatherService,
     fake_gemini: FakeGeminiService,
     fake_auth: FakeAuthService,
+    fake_wikipedia: FakeWikipediaService,
 ):
     application = create_app(settings)
     with TestClient(application) as test_client:
         application.state.maps_service = fake_maps
         application.state.weather_service = fake_weather
         application.state.gemini_service = fake_gemini
+        application.state.wikipedia_service = fake_wikipedia
         application.state.auth_service = fake_auth
         application.state.itinerary_service = ItineraryService(
             settings,
@@ -632,6 +727,7 @@ def client(
             itinerary_repository=application.state.itinerary_repository,
             profile_repository=application.state.profile_repository,
             notification_repository=application.state.notification_repository,
+            wikipedia_service=fake_wikipedia,
         )
         application.state.recommendation_service = RecommendationService(fake_maps)
         application.state.review_service = ReviewService(

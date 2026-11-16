@@ -234,6 +234,8 @@ def test_weather_date_validation(client, auth_headers):
 
 
 def test_unconfigured_integrations_return_503(settings, auth_headers):
+    from .conftest import FakeWikipediaService
+
     unconfigured = settings.model_copy(
         update={
             "google_maps_api_key": None,
@@ -243,6 +245,8 @@ def test_unconfigured_integrations_return_503(settings, auth_headers):
     )
     application = create_app(unconfigured)
     with TestClient(application) as client:
+        # Keep the keyless open-data layer offline and deterministic here.
+        application.state.wikipedia_service = FakeWikipediaService()
         search = client.get(
             "/api/v1/destinations/search",
             headers=auth_headers,
@@ -286,3 +290,107 @@ def test_unconfigured_integrations_return_503(settings, auth_headers):
         assert generate.json()["generation_metadata"]["ai_model"].startswith(
             "deterministic planner"
         )
+
+
+def _wiki_article() -> dict:
+    return {
+        "pageid": 1,
+        "title": "Kinkaku-ji",
+        "extract": "Kinkaku-ji is a Zen Buddhist temple in Kyoto, Japan.",
+        "description": "Kinkaku-ji is a Zen Buddhist temple in Kyoto, Japan.",
+        "image_url": "https://upload.wikimedia.org/kinkaku.jpg",
+        "latitude": 35.0394,
+        "longitude": 135.7292,
+        "travel_type": "heritage",
+        "url": "https://en.wikipedia.org/?curid=1",
+    }
+
+
+def test_search_falls_back_to_wikipedia_without_maps(
+    client, auth_headers, fake_maps, fake_wikipedia
+):
+    from .conftest import wiki_attraction
+
+    fake_maps.is_configured = False
+    fake_wikipedia.geocode_result = {
+        "name": "Kyoto",
+        "display_name": "Kyoto, Japan",
+        "country": "Japan",
+        "latitude": 35.0116,
+        "longitude": 135.7681,
+    }
+    fake_wikipedia.attractions = [
+        wiki_attraction(1, "Kinkaku-ji", image_url="https://upload.wikimedia.org/kinkaku.jpg"),
+        wiki_attraction(3, "Nijō Castle"),
+    ]
+    response = client.get(
+        "/api/v1/destinations/search",
+        headers=auth_headers,
+        params={"query": "Kyoto", "limit": 6},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    ids = [item["place_id"] for item in body["items"]]
+    assert "wiki-1" in ids and "wiki-3" in ids
+    assert body["source"] == "Curated travel catalog + Wikipedia (open data)"
+    wiki_item = next(item for item in body["items"] if item["place_id"] == "wiki-1")
+    assert wiki_item["image_url"].startswith("https://")
+    assert wiki_item["description"]
+    assert wiki_item["rating"] is None  # never invent ratings
+
+
+def test_search_without_any_live_data_still_returns_curated(
+    client, auth_headers, fake_maps, fake_wikipedia
+):
+    fake_maps.is_configured = False  # wiki fake returns nothing
+    response = client.get(
+        "/api/v1/destinations/search",
+        headers=auth_headers,
+        params={"query": "Kyoto", "limit": 6},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["count"] >= 1
+    assert body["items"][0]["place_id"] == "curated-kyoto"
+
+
+def test_wikipedia_destination_details(client, auth_headers, fake_wikipedia):
+    fake_wikipedia.articles = {1: _wiki_article()}
+    response = client.get("/api/v1/destinations/wiki-1", headers=auth_headers)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["place_id"] == "wiki-1"
+    assert body["name"] == "Kinkaku-ji"
+    assert body["source"] == "Wikipedia (open data)"
+    assert body["image_url"].startswith("https://")
+    assert body["website_uri"] == "https://en.wikipedia.org/?curid=1"
+    assert body["rating"] is None
+    assert body["business_status"] == "OPERATIONAL"
+
+    missing = client.get("/api/v1/destinations/wiki-404", headers=auth_headers)
+    assert missing.status_code == 404
+
+
+def test_wikipedia_nearby_attractions_and_restaurants(
+    client, auth_headers, fake_wikipedia
+):
+    from .conftest import wiki_attraction
+
+    fake_wikipedia.articles = {1: _wiki_article()}
+    fake_wikipedia.attractions = [wiki_attraction(3, "Nijō Castle")]
+
+    attractions = client.get(
+        "/api/v1/destinations/wiki-1/attractions", headers=auth_headers
+    )
+    assert attractions.status_code == 200
+    body = attractions.json()
+    assert body["source"] == "Wikipedia (open data)"
+    assert [item["place_id"] for item in body["items"]] == ["wiki-3"]
+    assert body["destination_name"] == "Kinkaku-ji"
+
+    restaurants = client.get(
+        "/api/v1/destinations/wiki-1/restaurants", headers=auth_headers
+    )
+    assert restaurants.status_code == 200
+    assert restaurants.json()["items"] == []
+    assert "open-data" in restaurants.json()["message"].lower()

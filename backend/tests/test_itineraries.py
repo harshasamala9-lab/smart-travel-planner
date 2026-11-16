@@ -465,3 +465,80 @@ def test_saved_preferences_are_merged_into_generation(
     assert body["accommodation_preference"] == "hostel"
     assert body["transportation_preference"] == "walking"
     assert any("Dietary suitability" in warning for warning in body["warnings"])
+
+
+def test_generation_uses_wikipedia_attractions_when_places_fail(
+    client, auth_headers, start_date, fake_maps, fake_wikipedia
+):
+    """Keyless open-data planning: Places down → real Wikipedia landmarks."""
+    from app.core.exceptions import ExternalServiceError
+
+    from .conftest import wiki_attraction
+
+    async def failing_nearby(**kwargs):
+        raise ExternalServiceError("Places API is failing.")
+
+    fake_maps.nearby_places = failing_nearby
+    fake_wikipedia.attractions = [
+        wiki_attraction(1, "Kinkaku-ji"),
+        wiki_attraction(3, "Nijō Castle"),
+    ]
+
+    response = client.post(
+        "/api/v1/itineraries/generate",
+        headers=auth_headers,
+        json=_generate_payload(start_date),
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["generation_metadata"]["ai_model"].startswith("deterministic planner")
+    assert any("Wikipedia" in warning for warning in body["warnings"])
+    place_ids = {
+        activity["place_id"]
+        for day in body["days"]
+        for activity in day["activities"]
+    }
+    assert "wiki-1" in place_ids and "wiki-3" in place_ids
+    listing = client.get("/api/v1/itineraries", headers=auth_headers)
+    assert listing.json()["total"] == 1
+
+
+def test_wikipedia_plan_adds_curated_restaurant_themes(
+    client, auth_headers, start_date, fake_maps, fake_wikipedia
+):
+    """Open-data plans still get honest, clearly-labelled meal stops."""
+    from app.core.exceptions import ExternalServiceError
+
+    from .conftest import wiki_attraction
+
+    async def failing_nearby(**kwargs):
+        raise ExternalServiceError("Places API is failing.")
+
+    async def failing_search(query, *, limit=10, language=None):
+        raise ExternalServiceError("Places API is failing.")
+
+    fake_maps.nearby_places = failing_nearby
+    fake_maps.search_destinations = failing_search
+    fake_wikipedia.attractions = [
+        wiki_attraction(1, "Kinkaku-ji"),
+        wiki_attraction(3, "Nijō Castle"),
+    ]
+
+    response = client.post(
+        "/api/v1/itineraries/generate",
+        headers=auth_headers,
+        json=_generate_payload(start_date),
+    )
+    assert response.status_code == 201
+    body = response.json()
+    place_ids = {
+        activity["place_id"]
+        for day in body["days"]
+        for activity in day["activities"]
+    }
+    assert any(pid.startswith("wiki-") for pid in place_ids)
+    # Meal stops fall back to the clearly-labelled curated themes.
+    assert any(pid.startswith("curated-kyoto-theme") for pid in place_ids)
+    assert any(
+        "curated food themes" in warning for warning in body["warnings"]
+    )

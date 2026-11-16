@@ -51,6 +51,7 @@ from app.services.recommendation_service import RecommendationService
 from app.services.review_service import ReviewService
 from app.services.share_service import ShareService
 from app.services.weather_service import OpenWeatherService
+from app.services.wikipedia_service import WikipediaService
 
 logger = logging.getLogger("smart_travel")
 access_logger = logging.getLogger("smart_travel.access")
@@ -124,6 +125,13 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
     maps_service = GoogleMapsService(settings)
     weather_service = OpenWeatherService(settings)
     gemini_service = GeminiService(settings)
+    # Keyless open-data discovery (Wikipedia + OpenStreetMap): keeps search,
+    # details and itinerary planning working without any provider API key.
+    wikipedia_service = WikipediaService(
+        timeout_seconds=settings.wikipedia_timeout_seconds,
+        geo_cache_ttl_seconds=settings.wikipedia_geo_cache_ttl_seconds,
+        extract_cache_ttl_seconds=settings.wikipedia_extract_cache_ttl_seconds,
+    )
     budget_service = BudgetService(settings)
     profile_repository = ProfileRepository(database)
     itinerary_repository = ItineraryRepository(database)
@@ -140,6 +148,7 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         itinerary_repository=itinerary_repository,
         profile_repository=profile_repository,
         notification_repository=notification_repository,
+        wikipedia_service=wikipedia_service,
     )
     recommendation_service = RecommendationService(maps_service)
     review_service = ReviewService(
@@ -162,6 +171,7 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
     application.state.maps_service = maps_service
     application.state.weather_service = weather_service
     application.state.gemini_service = gemini_service
+    application.state.wikipedia_service = wikipedia_service
     application.state.budget_service = budget_service
     application.state.profile_repository = profile_repository
     application.state.itinerary_repository = itinerary_repository
@@ -209,6 +219,7 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
             maps_service,
             weather_service,
             gemini_service,
+            wikipedia_service,
         )
         await database.close()
         logger.info("Smart Travel Planner API stopped")

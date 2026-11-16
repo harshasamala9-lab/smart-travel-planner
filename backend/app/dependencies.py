@@ -35,6 +35,7 @@ from app.services.share_service import ShareService
 from app.services.neon_auth_service import NeonAuthService
 from app.services.neon_object_storage_service import NeonObjectStorageService
 from app.services.weather_service import OpenWeatherService
+from app.services.wikipedia_service import WikipediaService
 
 bearer_scheme = HTTPBearer(auto_error=False, description="Neon Auth access token")
 
@@ -69,6 +70,10 @@ def get_weather_service(request: Request) -> OpenWeatherService:
 
 def get_gemini_service(request: Request) -> GeminiService:
     return request.app.state.gemini_service
+
+
+def get_wikipedia_service(request: Request) -> WikipediaService:
+    return request.app.state.wikipedia_service
 
 
 def get_budget_service(request: Request) -> BudgetService:

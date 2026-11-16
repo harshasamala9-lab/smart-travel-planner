@@ -75,6 +75,7 @@ class ItineraryService:
         itinerary_repository: ItineraryRepository,
         profile_repository: ProfileRepository,
         notification_repository: NotificationRepository | None = None,
+        wikipedia_service: Any | None = None,
     ) -> None:
         self._settings = settings
         self._maps = maps_service
@@ -84,6 +85,9 @@ class ItineraryService:
         self._itineraries = itinerary_repository
         self._profiles = profile_repository
         self._notifications = notification_repository
+        # Keyless open-data discovery (Wikipedia + OpenStreetMap). Optional so
+        # tests stay deterministic; None simply disables the extra fallback.
+        self._wikipedia = wikipedia_service
 
     # ------------------------------------------------------------------ reads
     async def list_itineraries(
@@ -518,10 +522,10 @@ class ItineraryService:
         }
 
     @staticmethod
-    def _curated_candidates(
+    def _curated_base(
         destination: dict[str, Any],
-    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
-        """Build flexible, honestly-labelled candidate themes for offline plans."""
+    ) -> tuple[str, str, dict[str, Any]]:
+        """Shared skeleton for honestly-labelled curated theme candidates."""
         name = str(destination.get("name") or "your destination")
         latitude = destination.get("latitude")
         longitude = destination.get("longitude")
@@ -544,6 +548,48 @@ class ItineraryService:
             "national_phone_number": None,
             "source": "Curated travel catalog",
         }
+        return name, slug, base
+
+    @classmethod
+    def _curated_candidates(
+        cls,
+        destination: dict[str, Any],
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+        """Build flexible, honestly-labelled candidate themes for offline plans."""
+        return (
+            cls._curated_attraction_candidates(destination),
+            cls._curated_restaurant_candidates(destination),
+            [],
+        )
+
+    @classmethod
+    def _curated_attraction_candidates(
+        cls,
+        destination: dict[str, Any],
+    ) -> list[dict[str, Any]]:
+        return [
+            candidate
+            for candidate in cls._curated_theme_candidates(destination)
+            if candidate["category"] == ActivityCategory.ATTRACTION.value
+        ]
+
+    @classmethod
+    def _curated_restaurant_candidates(
+        cls,
+        destination: dict[str, Any],
+    ) -> list[dict[str, Any]]:
+        return [
+            candidate
+            for candidate in cls._curated_theme_candidates(destination)
+            if candidate["category"] == ActivityCategory.RESTAURANT.value
+        ]
+
+    @classmethod
+    def _curated_theme_candidates(
+        cls,
+        destination: dict[str, Any],
+    ) -> list[dict[str, Any]]:
+        name, slug, base = cls._curated_base(destination)
         themes = [
             (
                 "Historic centre and cultural quarter",
@@ -592,24 +638,21 @@ class ItineraryService:
                 "near your accommodation and confirm availability directly.",
             ),
         ]
-        attractions: list[dict[str, Any]] = []
-        restaurants: list[dict[str, Any]] = []
+        candidates: list[dict[str, Any]] = []
         for index, (title, category, types, description) in enumerate(themes):
-            candidate = {
-                **base,
-                "place_id": f"curated-{slug}-theme-{index}",
-                "name": f"{title} ({name})",
-                "types": types,
-                "category": ActivityCategory.ATTRACTION.value
-                if category == "attraction"
-                else ActivityCategory.RESTAURANT.value,
-                "editorial_summary": description,
-            }
-            if category == "attraction":
-                attractions.append(candidate)
-            else:
-                restaurants.append(candidate)
-        return attractions, restaurants, []
+            candidates.append(
+                {
+                    **base,
+                    "place_id": f"curated-{slug}-theme-{index}",
+                    "name": f"{title} ({name})",
+                    "types": types,
+                    "category": ActivityCategory.ATTRACTION.value
+                    if category == "attraction"
+                    else ActivityCategory.RESTAURANT.value,
+                    "editorial_summary": description,
+                }
+            )
+        return candidates
 
     def _deterministic_draft(
         self,
@@ -762,30 +805,38 @@ class ItineraryService:
         raw_hotels = results[2] if len(results) > 2 else None
 
         if isinstance(raw_attractions, BaseException):
-            if isinstance(raw_attractions, AppError):
-                raise raw_attractions
-            raise ExternalServiceError("Google Places could not load attractions.")
-        attractions = self._dedupe_candidates(list(raw_attractions))
-        if not attractions:
-            attractions = await self._fallback_text_search(
-                f"top attractions in {destination['name']}",
-                category=ActivityCategory.ATTRACTION,
+            # Google is failing: try keyless Wikipedia discovery before giving
+            # up on live attraction candidates entirely.
+            attractions = self._dedupe_candidates(
+                await self._wiki_attractions(destination, warnings)
             )
-            if attractions:
-                warnings.append(
-                    "Nearby attraction search returned no results; a destination text "
-                    "search fallback was used."
+            if not attractions:
+                if isinstance(raw_attractions, AppError):
+                    raise raw_attractions
+                raise ExternalServiceError("Google Places could not load attractions.")
+        else:
+            attractions = self._dedupe_candidates(list(raw_attractions))
+            if not attractions:
+                attractions = await self._fallback_text_search(
+                    f"top attractions in {destination['name']}",
+                    category=ActivityCategory.ATTRACTION,
+                )
+                if attractions:
+                    warnings.append(
+                        "Nearby attraction search returned no results; a destination "
+                        "text search fallback was used."
+                    )
+            if not attractions:
+                attractions = self._dedupe_candidates(
+                    await self._wiki_attractions(destination, warnings)
                 )
         if not attractions:
             raise NotFoundError(
                 "Google Places did not return attraction candidates for this destination."
             )
 
-        if isinstance(raw_restaurants, BaseException):
-            warnings.append(
-                "Restaurant recommendations are unavailable; the plan may not include "
-                "meal stops."
-            )
+        restaurants_unavailable = isinstance(raw_restaurants, BaseException)
+        if restaurants_unavailable:
             restaurants = await self._safe_text_search(
                 f"restaurants in {destination['name']}",
                 category=ActivityCategory.RESTAURANT,
@@ -797,6 +848,20 @@ class ItineraryService:
                     f"restaurants in {destination['name']}",
                     category=ActivityCategory.RESTAURANT,
                 )
+        if not restaurants and attractions and self._wikipedia is not None:
+            # Open-data plans still get honest, clearly-labelled food themes so
+            # the day structure keeps meal stops without any API key.
+            restaurants = self._curated_restaurant_candidates(destination)
+            if restaurants:
+                warnings.append(
+                    "Live restaurant listings were unavailable, so clearly-labelled "
+                    "curated food themes are used instead — no API key needed."
+                )
+        if not restaurants and restaurants_unavailable:
+            warnings.append(
+                "Restaurant recommendations are unavailable; the plan may not include "
+                "meal stops."
+            )
 
         if isinstance(raw_hotels, BaseException):
             if wants_hotels:
@@ -837,6 +902,37 @@ class ItineraryService:
         self, query: str, *, category: ActivityCategory
     ) -> list[dict[str, Any]]:
         return await self._fallback_text_search(query, category=category)
+
+    async def _wiki_attractions(
+        self,
+        destination: dict[str, Any],
+        warnings: list[str],
+    ) -> list[dict[str, Any]]:
+        """Keyless attraction discovery via Wikipedia when Google is unusable.
+
+        Failures never break planning: they simply return an empty list so the
+        curated-theme fallback can take over.
+        """
+        if self._wikipedia is None:
+            return []
+        try:
+            items = await self._wikipedia.nearby_attractions(
+                name=str(destination.get("name") or "your destination"),
+                latitude=destination.get("latitude"),
+                longitude=destination.get("longitude"),
+                limit=MAX_CANDIDATE_ATTRACTIONS,
+                radius_m=15_000,
+            )
+        except Exception:  # noqa: BLE001 - open data must never break planning
+            logger.warning("Wikipedia attraction discovery failed", exc_info=True)
+            return []
+        if not items:
+            return []
+        warnings.append(
+            "Google Places was unavailable, so real attractions were discovered "
+            "from Wikipedia's open data — no API key needed."
+        )
+        return items
 
     @staticmethod
     def _dedupe_candidates(candidates: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
