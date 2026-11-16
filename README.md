@@ -24,10 +24,11 @@ ports in `docker-compose.yml`).
 | Token verification | EdDSA/Ed25519 via the Neon Auth JWKS; optional HS256 for tests only |
 | AI | Gemini + Grok (xAI) structured JSON, validated and retried, provider fallback; optional Neon AI Gateway override; deterministic planner when no provider is reachable |
 | Places / routes | Google Places API (New), Geocoding API, Routes API, with the curated 80-destination catalog as fallback |
+| Keyless mode | **Works with zero API keys**: OpenStreetMap Nominatim geocoding + Wikipedia geosearch/extracts power live search, `wiki-*` destination details, attractions and itinerary planning — see `app/services/wikipedia_service.py` |
 | Weather | OpenWeather current + forecast, with forecast-coverage honesty |
 | Files | Neon Object Storage (S3-compatible, branches with the database) |
 | Reports / export | Currency-safe analytics, CSV, ReportLab PDF with Unicode font |
-| Tests | 108 passing, offline (no API quota or credentials required) |
+| Tests | 131 passing, offline (no API quota or credentials required) |
 | API docs | Swagger `/docs`, ReDoc `/redoc`, OpenAPI `/openapi.json` |
 | Production | Vercel: <https://smart-travel-planner-nine-teal.vercel.app> · Render API + SPA: <https://smart-travel-planner-nk60.onrender.com> |
 | Android | Capacitor 8 debug APK (see `docs/DEPLOY_AND_MOBILE.md`) |
@@ -257,6 +258,11 @@ indexes. It is idempotent (safe to re-run). No RLS and no Supabase
 realtime publication: the backend is the sole database client.
 
 ### 5. Google Cloud / OpenWeather / Gemini
+
+> **All of this is optional.** The app works perfectly with **no API keys at
+> all**: search, destination details, attractions and itineraries run on the
+> curated catalog plus the keyless open-data layer (Wikipedia + OpenStreetMap).
+> Add keys only for richer live data.
 
 - Enable **Places API (New)**, **Geocoding API**, and **Routes API** on the
   Google Cloud project used by `GOOGLE_MAPS_API_KEY`.

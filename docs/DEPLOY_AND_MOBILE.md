@@ -32,10 +32,33 @@ a long-running server, not a static site.
 Redeploy after a frontend change:
 
 ```bash
+./scripts/deploy_frontend.sh          # from the repo root
+# or manually:
 cd frontend
 vercel deploy --prod --yes --project smart-travel-planner \
   --build-env VITE_API_BASE_URL=https://smart-travel-planner-nk60.onrender.com
 ```
+
+**Hosting is permanent.** The production alias
+<https://smart-travel-planner-nine-teal.vercel.app> always points at the latest
+production deployment; Vercel keeps production deployments indefinitely on the
+Hobby plan and the domain never changes between deploys.
+
+**Auto-deploy on every push (optional, one-time setup):** GitHub rejects
+workflow-file pushes from an OAuth credential without the `workflow` scope, so
+pick ONE of these:
+
+1. *GitHub Actions (recommended):* run `gh auth refresh -s workflow`, enter the
+   one-time code at <https://github.com/login/device>, then run
+   `gh auth setup-git` so pushes use the refreshed token. The prepared
+   workflow lives at `.github/workflows/deploy-frontend.yml` (kept in the
+   working tree); commit and push it — every subsequent push to `main` that
+   touches `frontend/**` redeploys automatically. Repo secrets
+   `VERCEL_TOKEN` and `VERCEL_ORG_ID` are already set.
+2. *Vercel Git integration:* in the Vercel dashboard connect the GitHub
+   account (Login Connection), then `vercel git connect
+   https://github.com/harshasamala9-lab/smart-travel-planner`. Vercel then
+   deploys on every push without any workflow file.
 
 When the Vercel origin changes, add it to the Render `CORS_ORIGINS` variable and
 to the Neon Auth trusted domains (`neon neon-auth domain add <origin>`), then
